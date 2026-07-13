@@ -1,0 +1,48 @@
+// Use OpenCASCADE for geometry generation
+SetFactory("OpenCASCADE");
+
+// Define parameters
+r = 0.5;       // Radius of the cylinder
+h1 = 1.0;      // Height of the bottom part
+h2 = 1.2;      // Height of the top part
+lc = 0.1;      // Global characteristic mesh size
+lc_fine = 0.009; // Ultra-fine mesh size at the interface
+
+// Create the bottom cylinder
+Cylinder(1) = {0, 0, 0,  0, 0, h1,  r};
+
+// Create the top cylinder (starts where the first one ends)
+Cylinder(2) = {0, 0, h1,  0, 0, h2,  r};
+
+// Fragment the volumes to ensure a conformal mesh interface
+BooleanFragments { Volume{1}; Delete; }{ Volume{2}; Delete; }
+
+// Assign physical groups for boundary conditions/materials
+Physical Volume("Bottom_Volume") = {1};
+Physical Volume("Top_Volume") = {2};
+
+// --- Mesh Size Control via Fields ---
+
+// 1. Define a Distance Field from the interface plane (Z = h1)
+// We use a math function because the interface sits exactly at Z = h1.
+Field[1] = MathEval;
+Field[1].F = Sprintf("Fabs(z - %g)", h1);
+
+// 2. Define a Threshold Field to scale the mesh size based on that distance
+Field[2] = Threshold;
+Field[2].InField = 1;
+Field[2].SizeMin = lc_fine;  // Mesh size exactly at the interface
+Field[2].SizeMax = lc;       // Mesh size far away from the interface
+Field[2].DistMin = 0.05;     // Stay ultra-fine within 0.05 units of Z
+Field[2].DistMax = 0.3;      // Linearly transition back to global size over 0.3 units
+
+// 3. Set Field 2 as the background mesh provider
+Background Field = 2;
+
+// Global fallbacks (controls regions completely unaffected by the field)
+Mesh.MeshSizeMin = lc_fine;
+Mesh.MeshSizeMax = lc;
+
+// Optional: Prevent OpenCASCADE from overriding field settings via points
+Mesh.MeshSizeFromPoints = 0;
+Mesh.MeshSizeFromCurvature = 0;
