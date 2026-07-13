@@ -1,0 +1,281 @@
+Header
+  CHECK KEYWORDS Warn
+  Mesh DB "." "partitioning"
+End
+
+Simulation
+  Max Output Level = 5
+  Coordinate System = Cartesian
+  Simulation Type = Transient
+  Steady State Max Iterations = 50
+  Timestepping Method = BDF 
+  BDF Order = 2 
+
+  Timestep Sizes(1) = 0.002 
+  Timestep Intervals(1) = 5000000
+  Output Intervals(1) = 500
+
+  Coordinate Scaling = 0.5
+  Mesh Levels = 1
+  Post File = case.vtu
+End
+
+Constants
+  Gravity(4) = 0 -1 0 9.81
+  Stefan Boltzmann = 5.67037e-08
+End
+
+Body 1
+  Target Bodies(1) = 1
+  Equation = 1
+  Material = 1
+  Initial Condition = 1
+End
+
+Body 2
+  Target Bodies(3) = 2 3 5
+  Equation = 2
+  Material = 2
+  Initial Condition = 2
+  Body Force = 1
+End
+
+Body 3
+  Target Bodies(1) = 4
+  Equation = 1
+  Material = 1
+  Initial Condition = 3
+End
+
+Solver 1
+  Equation = Heat Equation
+  Procedure = "HeatSolve" "HeatSolver"
+  Variable = Temperature
+
+  Bubbles = Logical True
+
+  Linear System Solver = Iterative
+  Linear System Iterative Method = GCR
+  Linear System GCR Restart = 100        
+  Linear System Preconditioning = ILU2
+  Linear System Max Iterations = 1000     
+  Linear System Convergence Tolerance = 1.0e-8
+  Linear System Abort Not Converged = Logical False
+  
+  Nonlinear System Max Iterations = 50
+  Nonlinear System Convergence Tolerance = 1.e-7
+  Nonlinear System Relaxation Factor = 0.2 
+End
+
+Solver 2
+  Equation = "Temperature Flux"
+  Procedure = "FluxSolver" "FluxSolver"
+  Exec Solver = Always
+  Target Variable = String "Temperature"
+  Calculate Flux = Logical True
+  Exported Variable 1 = -dofs 2 "Temperature Flux"
+  Linear System Solver = Iterative
+  Linear System Iterative Method = BiCGStab
+  Linear System Preconditioning = ILU0
+  Linear System Max Iterations = 300
+  Linear System Convergence Tolerance = 1.0e-9
+End
+
+Solver 3
+  Equation = "Mesh Update"
+  Procedure = "MeshSolve" "MeshSolver"
+  Variable = -dofs 2 Mesh Update
+  Exec Solver = Always
+  Calculate Mesh Velocity = Logical True
+
+  Linear System Solver = Direct
+  Linear System Direct Method = MUMPS
+  Linear System Convergence Tolerance = 1.0e-9
+  Linear System Abort Not Converged = Logical False 
+  Nonlinear System Relaxation Factor = 0.2
+End
+
+Solver 4
+  Equation = Advection Diffusion
+  Variable = Concentration
+  Procedure = "AdvectionDiffusion" "AdvectionDiffusionSolver"
+   
+  Stabilize = Logical True
+  Bubbles = Logical False
+  
+  Linear System Solver = Iterative
+  Linear System Iterative Method = GCR
+  Linear System Preconditioning = ILU2
+  Linear System Max Iterations = 500
+  Linear System Convergence Tolerance = 1.e-7
+  Nonlinear System Relaxation Factor = 0.2
+End
+
+Solver 5
+  Equation = "Navier-Stokes"
+  Procedure = "FlowSolve" "FlowSolver"
+  Variable = Flow Solution[Velocity:2 Pressure:1]
+
+  Stabilize = Logical True
+  Linear System Solver = Direct
+  Linear System Direct Method = MUMPS
+  Linear System Preconditioning = ILU2
+  Linear System Max Iterations = 1000
+  Linear System Convergence Tolerance = 1.0e-6
+  Nonlinear System Max Iterations = 25
+  Nonlinear System Convergence Tolerance = 1.e-5
+  Nonlinear System Relaxation Factor = 0.2
+  Linear System Abort Not Converged = Logical False
+  Gradp Discretization = Logical True 
+  Stabilization Method = String "VMS" 
+End
+
+Body Force 1
+  Name = "Gravity"
+  Flow Bodyforce 2 = -9.81
+End
+
+Equation 1
+  Active Solvers(3) = 1 2 3
+  Convection = "None"
+  Mesh Update = Logical True
+End
+
+Equation 2
+  Active Solvers(5) = 1 2 5 3 4 
+  Convection = "Computed"
+  Mesh Update = Logical True
+  Navier-Stokes = Logical True
+End
+
+Material 1
+  Name = "Dry_Ice"
+  Density = 1560.0
+  Heat Conductivity = 0.5  
+  Heat Capacity = 710.0  
+  Mesh Elastic Modulus = 100
+  Mesh Poisson Ratio = 0.45
+End
+
+Material 2
+  Name = "Vacuum_Gas_Region"
+
+  Viscosity = Variable "Temperature, Pressure"
+    Real Lua "1.47e-5 * ((tx[0]/273.15)^1.5) * (273.15 + 240) / (tx[0] + 240)"
+
+  Heat Conductivity = Variable "Temperature, Pressure"
+    Real Lua "0.0146 * ((tx[0]/273.15)^1.5) * (273.15+240)/(tx[0]+240)"
+
+  Heat Capacity = Variable Temperature
+    Real Lua "840.0 * (tx[0]/273.15)^0.3"
+
+  Concentration Diffusivity = Variable "Temperature, Pressure"
+    Real Lua "1.0e-5 * ((math.max(tx[0],1.0)/273.15)^1.5)"
+
+  Density = Variable "Pressure, Temperature"
+    Real Lua "math.max(0.001, (tx[0]) / (188.9 * math.max(tx[1], 1.0)))"
+
+  Compressibility Model = String "Artificial Compressible"
+  Artificial Compressibility = Real 0.01
+  Mesh Elastic Modulus = 50
+  Mesh Poisson Ratio = 0.45
+End
+
+Initial Condition 1
+  Temperature = 190.0
+  Mesh Update 1 = 0.0
+  Mesh Update 2 = 0.0
+End
+
+Initial Condition 2
+  Temperature = 195.0
+  Pressure = 100000
+  Concentration = 2.714
+  Mesh Update 1 = 0.0
+  Mesh Update 2 = 0.0
+End
+
+Initial Condition 3
+  Temperature = 1000.0
+  Mesh Update 1 = 0.0
+  Mesh Update 2 = 0.0
+End
+
+Boundary Condition 1
+  Target Boundaries(1) = 12
+  Temperature = 1000.0
+  Mesh Update 1 = 0.0
+  Mesh Update 2 = 0.0
+End
+
+Boundary Condition 2
+  Target Boundaries(1) = 1
+  Temperature = 190.0
+  Mesh Update 1 = 0.0
+  Mesh Update 2 = 0.0
+End
+
+Boundary Condition 3
+  Target Boundaries(2) = 6 10
+  Mesh Update 2 = 0.0
+End
+
+Boundary Condition 4
+  Target Boundaries(2) = 15 16
+  Mesh Update 1 = 0.0
+  Mesh Update 2 = 0.0
+  Velocity 1 = 0
+  Velocity 2 = 0
+End
+
+Boundary Condition 5
+  Target Boundaries(4) = 5 7 9 11
+  Mesh Update 1 = 0.0
+  Velocity 1 = 0
+  Velocity 2 = 0
+End
+
+Boundary Condition 6
+  Target Boundaries(4) = 2 4 13 14
+  Mesh Update 1 = 0.0
+End
+
+Boundary Condition 7
+  Target Boundaries(1) = 3
+  
+  Mesh Update 1 = Variable "Temperature Flux 1", "Timestep size", "Mesh Update 1", "Time"
+    Real Lua "tx[3] < 1e-10 and 0.0 or tx[2] + (-(tx[0] / (1560 * 571000)) * tx[1])"
+  Mesh Update 2 = Variable "Temperature Flux 2", "Timestep size", "Mesh Update 2", "Time"
+    Real Lua "tx[3] < 1e-10 and 0.0 or tx[2] + (-(tx[0] / (1560 * 571000)) * tx[1])"
+
+  Velocity 1 = Variable "Temperature Flux 1, Pressure, Temperature, Time"
+    Real Lua "tx[3] < 1e-10 and 0.0 or (tx[0] / 571000) / (tx[1] / (188.9 * math.max(tx[2], 1.0)))"
+  Velocity 2 = Variable "Temperature Flux 2, Pressure, Temperature, Time"
+    Real Lua "tx[3] < 1e-10 and 0.0 or (tx[0] / 571000) / (tx[1] / (188.9 * math.max(tx[2], 1.0)))"
+
+  Concentration = Variable "Pressure, Temperature"
+    Real Lua "tx[0] / (188.9 * math.max(tx[1], 1.0))"
+  
+Heat Flux = Variable "Temperature Flux 1, Temperature Flux 2"
+  Real Lua "-math.sqrt(tx[0]^2 + tx[1]^2)"
+End
+
+Boundary Condition 8
+  Target Boundaries(1) = 8
+    
+  Mesh Update 1 = Variable "Temperature Flux 1", "Timestep size", "Mesh Update 1", "Time"
+    Real Lua "tx[3] < 1e-10 and 0.0 or tx[2] + (-(tx[0] / (1560 * 571000)) * tx[1])"
+  Mesh Update 2 = Variable "Temperature Flux 2", "Timestep size", "Mesh Update 2", "Time"
+    Real Lua "tx[3] < 1e-10 and 0.0 or tx[2] + (-(tx[0] / (1560 * 571000)) * tx[1])"
+
+  Velocity 1 = Variable "Temperature Flux 1, Pressure, Temperature, Time"
+    Real Lua "tx[3] < 1e-10 and 0.0 or (tx[0] / 571000) / (tx[1] / (188.9 * math.max(tx[2], 1.0)))"
+  Velocity 2 = Variable "Temperature Flux 2, Pressure, Temperature, Time"
+    Real Lua "tx[3] < 1e-10 and 0.0 or (tx[0] / 571000) / (tx[1] / (188.9 * math.max(tx[2], 1.0)))"
+
+  Concentration = Variable "Pressure, Temperature"
+    Real Lua "tx[0] / (188.9 * math.max(tx[1], 1.0))"
+
+Heat Flux = Variable "Temperature Flux 1, Temperature Flux 2"
+  Real Lua "-math.sqrt(tx[0]^2 + tx[1]^2)"
+End
